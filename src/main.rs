@@ -64,9 +64,9 @@ fn csv_log(
         Utc::now().to_string(),
         idx.to_string(),
         state.to_string(),
-        format!("{:?}", voltage),
-        format!("{:?}", energy),
-        format!("{:?}", energy_rate),
+        format!("{:?}", voltage.value),
+        format!("{:?}", energy.value),
+        format!("{:?}", energy_rate.value),
     ])?;
     wtr.flush()?;
     Ok(())
