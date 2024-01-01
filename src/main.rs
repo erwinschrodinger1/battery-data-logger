@@ -2,7 +2,7 @@ use battery::{
     units::{ElectricPotential, Energy, Power},
     Manager, State,
 };
-use chrono::prelude::*;
+use chrono::{prelude::*, format};
 use csv::Writer;
 use std::{
     error::Error,
@@ -24,12 +24,15 @@ async fn main() -> Result<(), battery::Error> {
         .append(true)
         .open("battery_log.csv")
         .unwrap();
-
+    let mut previousTime = Local::now();
+    let mut previouseCharge  = 0.0;
     loop {
         for (idx, maybe_battery) in manager.batteries()?.enumerate() {
             let battery = maybe_battery?;
-
+            
             if let Err(_err) = csv_log(
+                Local::now().timestamp()-previousTime.timestamp()  ,
+                battery.energy().value - previouseCharge,
                 file.try_clone().unwrap(),
                 idx,
                 battery.state(),
@@ -37,12 +40,16 @@ async fn main() -> Result<(), battery::Error> {
                 battery.energy(),
                 battery.energy_rate(),
             ) {}
+            previouseCharge = battery.energy().value;
+            previousTime = Local::now();
         }
         interval.tick().await;
     }
 }
 
 fn csv_log(
+    timeDifference: i64,
+    chargeDifference: f32,
     file: File,
     idx: usize,
     state: State,
@@ -52,21 +59,32 @@ fn csv_log(
 ) -> Result<(), Box<dyn Error>> {
     let mut wtr = Writer::from_writer(file);
     println!(
-        "Logging:: {},{},{},{},{},{}",
+        "Logging:: {},{},{},{},{},{},{},{}",
         Utc::now().to_string(),
         idx.to_string(),
         state.to_string(),
         format!("{:?}", voltage),
         format!("{:?}", energy),
-        format!("{:?}", energy_rate)
+        format!("{:?}", energy_rate),
+        format!("{:?}",chargeDifference),
+        format!("{:?}",timeDifference)
     );
     wtr.write_record(&[
         Utc::now().to_string(),
         idx.to_string(),
-        state.to_string(),
+        (if state.to_string() == "discharging" {
+            -1
+        } else if state.to_string() == "charging" {
+            1
+        } else {
+            0
+        })
+        .to_string(),
         format!("{:?}", voltage.value),
         format!("{:?}", energy.value),
         format!("{:?}", energy_rate.value),
+        format!("{:?}",chargeDifference),
+        format!("{:?}",timeDifference)
     ])?;
     wtr.flush()?;
     Ok(())
